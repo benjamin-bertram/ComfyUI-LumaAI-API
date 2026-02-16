@@ -11,6 +11,7 @@ app.registerExtension({
             || nodeData.name == "LumaImage2Video"
             || nodeData.name == "LumaInterpolateGenerations"
             || nodeData.name == "LumaExtendGeneration"
+            || nodeData.name == "LumaModifyVideo"
             || nodeData.name == "LumaImageGeneration"
             || nodeData.name == "LumaModifyImage"
         ) {

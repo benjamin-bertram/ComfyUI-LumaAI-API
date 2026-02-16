@@ -121,12 +121,12 @@ class Text2Video:
         return {
             "required": {
                 "client": ("LUMACLIENT", {"forceInput": True}),
-                "model": (["ray-flash-2", "ray-2", "ray-1.6"],),
+                "model": (["ray-3-14", "ray-hdr-3-14", "ray-flash-2", "ray-2", "ray-1.6"],),
                 "prompt": ("STRING", {"multiline": True, "default": ""}),
-                "duration": (["5s", "9s"],),
+                "duration": (["5s", "9s", "10s"],),
                 "loop": ("BOOLEAN", {"default": False}),
-                "aspect_ratio": (["9:16", "3:4", "1:1", "4:3", "16:9", "21:9"],),
-                "resolution": (["540p", "720p"],),
+                "aspect_ratio": (["9:16", "3:4", "1:1", "4:3", "16:9", "21:9", "9:21"],),
+                "resolution": (["720p", "1080p", "4k", "540p"],),
                 "save": ("BOOLEAN", {"default": True}),
             },
             "optional": {"filename": ("STRING", {"default": ""})},
@@ -179,10 +179,10 @@ class Image2Video:
             "required": {
                 "client": ("LUMACLIENT", {"forceInput": True}),
                 "prompt": ("STRING", {"multiline": True, "default": ""}),
-                "model": (["ray-flash-2", "ray-2", "ray-1.6"],),
-                "duration": (["5s", "9s"],),
+                "model": (["ray-3-14", "ray-hdr-3-14", "ray-flash-2", "ray-2", "ray-1.6"],),
+                "duration": (["5s", "9s", "10s"],),
                 "loop": ("BOOLEAN", {"default": False}),
-                "resolution": (["540p", "720p"],),
+                "resolution": (["720p", "1080p", "4k", "540p"],),
                 "save": ("BOOLEAN", {"default": True}),
             },
             "optional": {
@@ -245,7 +245,7 @@ class Image2Video:
 class InterpolateGenerations:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
-    
+
     @classmethod
     def IS_CHANGED(cls, *args, **kwargs):
         return float("NaN")
@@ -256,13 +256,20 @@ class InterpolateGenerations:
             "required": {
                 "client": ("LUMACLIENT", {"forceInput": True}),
                 "prompt": ("STRING", {"multiline": True, "default": ""}),
-                "model": (["ray-flash-2", "ray-2", "ray-1.6"],),
-                "resolution": (["540p", "720p"],),
+                "model": (["ray-3-14", "ray-hdr-3-14", "ray-flash-2", "ray-2", "ray-1.6"],),
+                "duration": (["5s", "9s", "10s"],),
+                "loop": ("BOOLEAN", {"default": False}),
+                "aspect_ratio": (["9:16", "3:4", "1:1", "4:3", "16:9", "21:9", "9:21"],),
+                "resolution": (["720p", "1080p", "4k", "540p"],),
                 "save": ("BOOLEAN", {"default": True}),
-                "generation_id_1": ("STRING", {"default": "", "forceInput": True}),
-                "generation_id_2": ("STRING", {"default": "", "forceInput": True}),
+                "frame0_type": (["generation", "image"],),
+                "frame1_type": (["generation", "image"],),
             },
-            "optional": {"filename": ("STRING", {"default": ""})},
+            "optional": {
+                "frame0_id_or_url": ("STRING", {"default": "", "forceInput": True}),
+                "frame1_id_or_url": ("STRING", {"default": "", "forceInput": True}),
+                "filename": ("STRING", {"default": ""}),
+            },
         }
 
     RETURN_TYPES = ("STRING", "STRING")
@@ -275,25 +282,41 @@ class InterpolateGenerations:
         client,
         model,
         prompt,
+        duration,
+        loop,
+        aspect_ratio,
         resolution,
         save,
-        generation_id_1,
-        generation_id_2,
+        frame0_type,
+        frame1_type,
+        frame0_id_or_url="",
+        frame1_id_or_url="",
         filename="",
     ):
         """
-        Generate a video by interpolating between two existing generations.
+        Generate a video by interpolating between two keyframes.
+        Each keyframe can be either a generation (by id) or an image (by url).
         """
-        if not generation_id_1 or not generation_id_2:
-            raise ValueError("Both generation IDs are required")
+        if not frame0_id_or_url or not frame1_id_or_url:
+            raise ValueError("Both frame0 and frame1 are required for interpolation")
+
+        keyframes = {}
+        if frame0_type == "generation":
+            keyframes["frame0"] = {"type": "generation", "id": frame0_id_or_url}
+        else:
+            keyframes["frame0"] = {"type": "image", "url": frame0_id_or_url}
+        if frame1_type == "generation":
+            keyframes["frame1"] = {"type": "generation", "id": frame1_id_or_url}
+        else:
+            keyframes["frame1"] = {"type": "image", "url": frame1_id_or_url}
 
         generation = client.generations.create(
             prompt=prompt,
-            keyframes={
-                "frame0": {"type": "generation", "id": generation_id_1},
-                "frame1": {"type": "generation", "id": generation_id_2},
-            },
+            keyframes=keyframes,
             model=model,
+            duration=duration,
+            loop=loop,
+            aspect_ratio=aspect_ratio,
             resolution=resolution,
         )
         generation_id = generation.id
@@ -311,7 +334,7 @@ class InterpolateGenerations:
 class ExtendGeneration:
     def __init__(self):
         self.output_dir = folder_paths.get_output_directory()
-    
+
     @classmethod
     def IS_CHANGED(cls, *args, **kwargs):
         return float("NaN")
@@ -322,9 +345,11 @@ class ExtendGeneration:
             "required": {
                 "client": ("LUMACLIENT", {"forceInput": True}),
                 "prompt": ("STRING", {"multiline": True, "default": ""}),
-                "model": (["ray-flash-2", "ray-2", "ray-1.6"],),
+                "model": (["ray-3-14", "ray-flash-2", "ray-2", "ray-1.6"],),
+                "duration": (["5s", "9s", "10s"],),
                 "loop": ("BOOLEAN", {"default": False}),
-                "resolution": (["540p", "720p"],),
+                "aspect_ratio": (["9:16", "3:4", "1:1", "4:3", "16:9", "21:9", "9:21"],),
+                "resolution": (["720p", "1080p", "4k", "540p"],),
                 "save": ("BOOLEAN", {"default": True}),
             },
             "optional": {
@@ -346,7 +371,9 @@ class ExtendGeneration:
         client,
         model,
         prompt,
+        duration,
         loop,
+        aspect_ratio,
         resolution,
         save,
         init_image_url="",
@@ -382,10 +409,96 @@ class ExtendGeneration:
         generation = client.generations.create(
             prompt=prompt,
             model=model,
+            duration=duration,
             loop=loop,
+            aspect_ratio=aspect_ratio,
             resolution=resolution,
             keyframes=keyframes,
         )
+        generation_id = generation.id
+        video_url = wait_for_generation(client, generation_id, save, filename, self.output_dir)
+
+        return {
+            "ui": {"text": [generation_id]},
+            "result": (
+                video_url,
+                generation_id,
+            ),
+        }
+
+
+class ModifyVideo:
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+
+    @classmethod
+    def IS_CHANGED(cls, *args, **kwargs):
+        return float("NaN")
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "client": ("LUMACLIENT", {"forceInput": True}),
+                "prompt": ("STRING", {"multiline": True, "default": ""}),
+                "model": (["ray-3-14", "ray-2", "ray-flash-2"],),
+                "mode": (["adhere_1", "adhere_2", "adhere_3", "flex_1", "flex_2", "flex_3", "reimagine_1", "reimagine_2", "reimagine_3"],),
+                "media_url": ("STRING", {"default": "", "forceInput": True}),
+                "resolution": (["720p", "1080p"],),
+                "save": ("BOOLEAN", {"default": True}),
+            },
+            "optional": {
+                "first_frame_url": ("STRING", {"default": "", "forceInput": True}),
+                "last_frame_url": ("STRING", {"default": "", "forceInput": True}),
+                "filename": ("STRING", {"default": ""}),
+            },
+        }
+
+    RETURN_TYPES = ("STRING", "STRING")
+    RETURN_NAMES = ("video_url", "generation_id")
+    OUTPUT_NODE = True
+    FUNCTION = "run"
+    CATEGORY = "LumaAI/Ray"
+
+    def run(
+        self,
+        client,
+        prompt,
+        model,
+        mode,
+        media_url,
+        resolution,
+        save,
+        first_frame_url="",
+        last_frame_url="",
+        filename="",
+    ):
+        """
+        Modify a video using Ray 3.14 style transfer and prompt-based editing.
+        """
+        if not media_url:
+            raise ValueError("Media URL (source video) is required")
+
+        kwargs = {
+            "generation_type": "modify_video",
+            "model": model,
+            "mode": mode,
+            "media": {"url": media_url},
+            "prompt": prompt,
+        }
+
+        first_frame = None
+        if first_frame_url:
+            first_frame = {"url": first_frame_url}
+            kwargs["first_frame"] = first_frame
+
+        extra_body = {"resolution": resolution}
+        if last_frame_url:
+            extra_body["last_frame"] = {"url": last_frame_url}
+
+        kwargs["extra_body"] = extra_body
+
+        generation = client.generations.video.modify(**kwargs)
         generation_id = generation.id
         video_url = wait_for_generation(client, generation_id, save, filename, self.output_dir)
 
